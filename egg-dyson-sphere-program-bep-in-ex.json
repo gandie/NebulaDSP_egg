@@ -1,0 +1,172 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2025-04-04T23:25:59+00:00",
+    "name": "Dyson Sphere Program BepInEx",
+    "author": "unknown@unknown.com",
+    "description": "A DSP MP server with R2modman\/Thrunderstore profile updating.\r\nNo auto-update on server start, use reinstall to update (no files are deleted)\r\n\r\nInstall script was mashed together from various places and my (Avril112113's) own mod updating code.",
+    "features": null,
+    "docker_images": {
+        "ghcr.io\/parkervcp\/yolks:wine_latest": "ghcr.io\/parkervcp\/yolks:wine_latest"
+    },
+    "file_denylist": [],
+    "startup": "WINEDLLOVERRIDES=\"mscoree=n,b;mshtml=n,b;winhttp=n,b\"; > .\/BepInEx\/LogOutput.log; tail -f .\/BepInEx\/LogOutput.log & wine DSPGAME.exe -logFile unity.log --doorstop-enable true --doorstop-target \".\\BepInEx\\core\\BepInEx.Preloader.dll\" -batchmode -nographics -server $SERVER_ARGS",
+    "config": {
+        "files": "{}",
+        "startup": "{\r\n    \"done\": \"Game load completed\"\r\n}",
+        "logs": "{}",
+        "stop": "^C"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!\/bin\/bash\r\n# steamcmd Base Installation Script\r\n#\r\n# Server Files: \/mnt\/server\r\n# Image to install with is 'ghcr.io\/parkervcp\/installers:debian'\r\n\r\n##\r\n#\r\n# Variables\r\n# STEAM_USER, STEAM_PASS, STEAM_AUTH - Steam user setup. If a user has 2fa enabled it will most likely fail due to timeout. Leave blank for anon install.\r\n# WINDOWS_INSTALL - if it's a windows server you want to install set to 1\r\n# SRCDS_APPID - steam app id found here - https:\/\/developer.valvesoftware.com\/wiki\/Dedicated_Servers_List\r\n# SRCDS_BETAID - beta branch of a steam app. Leave blank to install normal branch\r\n# SRCDS_BETAPASS - password for a beta branch should one be required during private or closed testing phases.. Leave blank for no password.\r\n# INSTALL_FLAGS - Any additional SteamCMD  flags to pass during install.. Keep in mind that steamcmd auto update process in the docker image might overwrite or ignore these when it performs update on server boot.\r\n# AUTO_UPDATE - Adding this variable to the egg allows disabling or enabling automated updates on boot. Boolean value. 0 to disable and 1 to enable.\r\n#\r\n##\r\n\r\n# Install packages.\r\napt -y update\r\napt -y --no-install-recommends --no-install-suggests install wget p7zip-full p7zip-full\r\nwget https:\/\/github.com\/mikefarah\/yq\/releases\/latest\/download\/yq_linux_amd64 -O \/usr\/bin\/yq\r\nchmod +x \/usr\/bin\/yq\r\n\r\n## just in case someone removed the defaults.\r\nif [[ \"${STEAM_USER}\" == \"\" ]] || [[ \"${STEAM_PASS}\" == \"\" ]]; then\r\n    echo -e \"steam user is not set.\\n\"\r\n    echo -e \"Using anonymous user.\\n\"\r\n    STEAM_USER=anonymous\r\n    STEAM_PASS=\"\"\r\n    STEAM_AUTH=\"\"\r\nelse\r\n    echo -e \"user set to ${STEAM_USER}\"\r\nfi\r\n\r\n## download and install steamcmd\r\ncd \/tmp\r\nmkdir -p \/mnt\/server\/steamcmd\r\ncurl -sSL -o steamcmd.tar.gz https:\/\/steamcdn-a.akamaihd.net\/client\/installer\/steamcmd_linux.tar.gz\r\ntar -xzvf steamcmd.tar.gz -C \/mnt\/server\/steamcmd\r\nmkdir -p \/mnt\/server\/steamapps # Fix steamcmd disk write error when this folder is missing\r\ncd \/mnt\/server\/steamcmd\r\n\r\n# SteamCMD fails otherwise for some reason, even running as root.\r\n# This is changed at the end of the install process anyways.\r\nchown -R root:root \/mnt\r\nexport HOME=\/mnt\/server\r\n\r\n## install game using steamcmd\r\n.\/steamcmd.sh +force_install_dir \/mnt\/server +login ${STEAM_USER} ${STEAM_PASS} ${STEAM_AUTH} $( [[ \"${WINDOWS_INSTALL}\" == \"1\" ]] && printf %s '+@sSteamCmdForcePlatformType windows' ) +app_update ${SRCDS_APPID} $( [[ -z ${SRCDS_BETAID} ]] || printf %s \"-beta ${SRCDS_BETAID}\" ) $( [[ -z ${SRCDS_BETAPASS} ]] || printf %s \"-betapassword ${SRCDS_BETAPASS}\" ) ${INSTALL_FLAGS} validate +quit ## other flags may be needed depending on install. looking at you cs 1.6\r\n\r\n## set up 32 bit libraries\r\nmkdir -p \/mnt\/server\/.steam\/sdk32\r\ncp -v linux32\/steamclient.so ..\/.steam\/sdk32\/steamclient.so\r\n\r\n## set up 64 bit libraries\r\nmkdir -p \/mnt\/server\/.steam\/sdk64\r\ncp -v linux64\/steamclient.so ..\/.steam\/sdk64\/steamclient.so\r\n\r\n## Install & Setup Goldberg Steam Emu\r\nrm -f \/mnt\/server\/DSPGAME_Data\/Plugins\/steam_api64.dll\r\ncurl -L \"https:\/\/gitlab.com\/Mr_Goldberg\/goldberg_emulator\/-\/jobs\/4247811310\/artifacts\/raw\/steam_api64.dll\" --output \"$HOME\/DSPGAME_Data\/Plugins\/steam_api64.dll\" 2> \/dev\/null\r\nmkdir -p \/mnt\/server\/DSPGAME_Data\/Plugins\/steam_settings\r\ntouch \/mnt\/server\/DSPGAME_Data\/Plugins\/steam_settings\/disable_networking.txt\r\necho \"1366540\" > \/mnt\/server\/DSPGAME_Data\/Plugins\/steam_appid.txt\r\n\r\n## add below your custom commands if needed\r\n\r\necho \"-------------------------------------------------------\"\r\necho \"installing BepInEx and Selected ModPack...\"\r\necho \"-------------------------------------------------------\"\r\nif ! api_response=$(curl -sfSL -H \"accept: application\/json\" \"https:\/\/thunderstore.io\/api\/experimental\/package\/xiaoye97\/BepInEx\/\"); then\r\n    fatal \"Error: could not retrieve BepInEx release info from Thunderstore.io API\"\r\nfi\r\n\r\ndownload_url=$(jq -r  \".latest.download_url\" <<< \"$api_response\" )\r\nversion_number=$(jq -r  \".latest.version_number\" <<< \"$api_response\" )\r\n\r\ncd \/mnt\/server\r\n#echo $download_url\r\nwget --content-disposition $download_url\r\nunzip -qo xiaoye97-BepInEx-${version_number}.zip\r\ncp -r \/mnt\/server\/BepInExPack\/* \/mnt\/server\r\n\r\nif [ ! -z \"$V_PROFILECODE\" ]; then\r\n\tfunction fix_filenames {\r\n\t\t# Some mods use `\\` instead of `\/` in the zip, so we need to fix the path.\r\n\t\tlocal BAD_FILES=$(find $1 -regex '.*\\\\.*')\r\n\t\twhile IFS= read -r SRC; do\r\n\t\t\tif [[ $SRC ]]; then\r\n\t\t\t\tlocal DST=$(echo \"$SRC\" | sed 's\/\\\\\/\\\/\/g')\r\n\t\t\t\tmkdir -p $(dirname \"$DST\")\r\n\t\t\t\tmv $SRC $DST\r\n\t\t\tfi\r\n\t\tdone <<< $BAD_FILES\r\n\t}\r\n\r\n\tfunction thunderstore_get_profile {\r\n\t\tlocal PROFILE_CODE=$1\r\n\t\tlocal OUT_DIR=$2\r\n\t\tif [[ -d \"$OUT_DIR\" ]]; then\r\n\t\t\trm -r \"$OUT_DIR\"\r\n\t\tfi\r\n\t\t# Download base64 encoded zip file.\r\n\t\techo -e \"Downloading profile $PROFILE_CODE\"\r\n\t\twget -qO mods.base64 https:\/\/thunderstore.io\/api\/experimental\/legacyprofile\/get\/$PROFILE_CODE\/\r\n\t\t# Cut the first line, which contains \"#r2modman\" and base64 decode.\r\n\t\t# Probably should check if it actually has that prefix, but bash is annoying.\r\n\t\ttail -n +2 mods.base64 | base64 --decode > mods.zip\r\n\t\trm mods.base64\r\n\t\techo -e \"Extracting profile\"\r\n\t\tunzip -qo mods.zip -d \"$OUT_DIR\"\r\n\t\trm mods.zip\r\n\t}\r\n\r\n\tfunction thunderstore_download {\r\n\t\tlocal OUT_DIR=$1\r\n\t\tlocal PACKAGE=$2  # slash seperated\r\n\t\tlocal VERSION=$3  # dot seperated\r\n\t\tlocal PACKAGE_ALT=`echo \"$PACKAGE\" | sed -r 's\/\\\/\/-\/g'`\r\n\r\n\t\techo -e \"- Downloading mod $PACKAGE @ $VERSION   ($PACKAGE_ALT)\"\r\n\t\twget -qO tmp.zip https:\/\/thunderstore.io\/package\/download\/$PACKAGE\/$VERSION\/\r\n\r\n\t\tmkdir tmp\r\n\t\t7z x tmp.zip -o\"tmp\" -y > \/dev\/null\r\n\t\trm tmp.zip\r\n\r\n\t\tfix_filenames .\/tmp\r\n\t\t# The following will reduce the path if it only contains 1 folder.\r\n\t\t# This is safe because it's always anchored to .\/tmp\r\n\t\t# This first if is to check if there is only 1 folder in the mod directory\r\n\t\tif [[ $(find .\/tmp\/* -maxdepth 0 -type d 2>\/dev\/null | wc -l) == 1 ]]; then\r\n\t\t\tlocal DIR=$(find .\/tmp\/* -maxdepth 0 -type d)\r\n\t\t\t# While there is only 1 item in the directory, move the contents to it's parent directory.\r\n\t\t\twhile [[ $(find $DIR* -maxdepth 0 2>\/dev\/null | wc -l) == 1 ]]; do\r\n\t\t\t\tlocal DIR=$(find .\/tmp\/* -maxdepth 0 -type d)\r\n\t\t\t\tmv \"$DIR\"\/* $(dirname \"$DIR\")\r\n\t\t\t\trm -r $DIR\r\n\t\t\tdone\r\n\t\tfi\r\n\r\n\t\t# Move from .\/tmp to the actual target directory\r\n\t\tmkdir -p $OUT_DIR\/$PACKAGE_ALT\r\n\t\tmv .\/tmp\/* \"$OUT_DIR\/$PACKAGE_ALT\"\r\n\r\n\t\trm -r .\/tmp\r\n\t}\r\n\r\n\tfunction get_profile_mods {\r\n\t\tlocal YAML_PATH=$1\r\n\t\tyq '[.mods[] | select(.enabled == true) | ((.name | sub(\"-\", \"\/\")) + \" \" + .version.major + \".\" + .version.minor + \".\" + .version.patch)][]' \"$YAML_PATH\"\r\n\t}\r\n\r\n\tfunction update_from_profile_code {\r\n\t\tlocal PROFILE_CODE=$1\r\n\t\tlocal BEPINEX_DIR=$2\r\n\t\tthunderstore_get_profile \"$PROFILE_CODE\" .\/tmp_mods\r\n\t\twhile IFS= read -r args; do\r\n\t\t\tif [[ $args != *\"BepInExPack_\"* ]]; then\r\n\t\t\tthunderstore_download .\/tmp_mods\/BepInEx\/plugins\/ $args\r\n\t\t\tfi\r\n\t\tdone <<< `get_profile_mods .\/tmp_mods\/export.r2x`\r\n\r\n\t\techo Preparing mod files\r\n\r\n\t\tfix_filenames .\/tmp_mods\r\n\r\n\t\t# Finally, organize the folders to be moved into .\/BepInEx\r\n\t\tcp -rf .\/tmp_mods\/BepInEx\/* .\/tmp_mods\r\n\t\trm -r .\/tmp_mods\/BepInEx\r\n\r\n\t\t# Delete Old Mods\r\n\t\trm -rf $BEPINEX_DIR\/plugins\/*\r\n\r\n\t\t# Update mods\r\n\t\tmkdir -p $BEPINEX_DIR\r\n\t\tif [[ \"${BEPINEX_UPDATE_OVERWRITE}\" == \"1\" ]]; then\r\n\t\t\techo Overwriting all mod files.\r\n\t\t\tcp -rf .\/tmp_mods\/* $BEPINEX_DIR\r\n\t\telse\r\n\t\t\techo -e \"Updating mods (not overwriting configs, ensure no changes are required)\"\r\n\t\t\tcp -rfn .\/tmp_mods\/* $BEPINEX_DIR\r\n\t\tfi\r\n\t\trm -r .\/tmp_mods\r\n\r\n\t\techo Mods updated.\r\n\t}\r\n\r\n\tupdate_from_profile_code \"$V_PROFILECODE\" \/mnt\/server\/BepInEx\r\nfi\r\n\r\n# Clean-up\r\nrm -fR BepInExPack\r\nrm -fR icon.png\r\nrm -fR xiaoye97-BepInEx-*\r\nrm -fR manifest.json\r\nrm -fR README.m\r\n\r\n## install end\r\necho \"-----------------------------------------\"\r\necho \"Installation completed...\"\r\necho \"-----------------------------------------\"",
+            "container": "ghcr.io\/parkervcp\/installers:debian",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "App id",
+            "description": "",
+            "env_variable": "SRCDS_APPID",
+            "default_value": "1366540",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Auto Update",
+            "description": "",
+            "env_variable": "AUTO_UPDATE",
+            "default_value": "0",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Windows",
+            "description": "",
+            "env_variable": "WINDOWS_INSTALL",
+            "default_value": "1",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "WINEPATH",
+            "description": "",
+            "env_variable": "WINEPATH",
+            "default_value": "\/home\/container",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string",
+            "field_type": "text"
+        },
+        {
+            "name": "WINEDEBUG",
+            "description": "",
+            "env_variable": "WINEDEBUG",
+            "default_value": "fixme-all,err-d3d_shader",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Profile Code",
+            "description": "Enter the profile code exported from R2modman or Thunderstore to automatically download mods.\r\nMOD UPDATES\/CHANGES NEED A SERVER REINSTALL TO APPLY.",
+            "env_variable": "V_PROFILECODE",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "string|nullable",
+            "field_type": "text"
+        },
+        {
+            "name": "STEAM_USER",
+            "description": "",
+            "env_variable": "STEAM_USER",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string",
+            "field_type": "text"
+        },
+        {
+            "name": "STEAM_PASS",
+            "description": "",
+            "env_variable": "STEAM_PASS",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "STEAM_AUTH",
+            "description": "",
+            "env_variable": "STEAM_AUTH",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "WINETRICKS_RUN",
+            "description": "",
+            "env_variable": "WINETRICKS_RUN",
+            "default_value": "vcrun2013 vcrun2017 corefonts dotnet48",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "SERVER_ARGS",
+            "description": "`-newgame-cfg` New game from nebulaGameDescSettings.cfg\r\n`-load-latest` Loads `_lastexit_.dsv`",
+            "env_variable": "SERVER_ARGS",
+            "default_value": "-newgame-cfg",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "string",
+            "field_type": "text"
+        },
+        {
+            "name": "Steam Beta Branch",
+            "description": "previous-version",
+            "env_variable": "SRCDS_BETAID",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Overwrite mods",
+            "description": "If enabled, ALL mods files including configs will be overridden.",
+            "env_variable": "BEPINEX_UPDATE_OVERWRITE",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "VALIDATE",
+            "description": "",
+            "env_variable": "VALIDATE",
+            "default_value": "1",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        }
+    ]
+}
