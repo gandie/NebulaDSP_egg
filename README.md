@@ -74,6 +74,11 @@ and document it in this README under Configuration.
 
 - [Nebula Mod Team](https://github.com/NebulaModTeam/nebula) for awesome mod and great support
 - [Avril112113](https://github.com/Avril112113) creating the initial egg file this is based on and sharing knowledge
+- [WhyKickAmooCow](https://github.com/WhyKickAmooCow) for groundwork done in DSP servers
+- [AlienXAXS](https://github.com/AlienXAXS) for even more groundwork this is based on
+- [Pelican egg base](https://github.com/pelican-eggs/eggs/) provding base eggs to work from
+
+Your name not here? Just contact us. This is a community effort based on several people's work.
 
 ## AI usage disclaimer
 
