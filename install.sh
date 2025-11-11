@@ -158,12 +158,12 @@ cp -v linux64/steamclient.so ../.steam/sdk64/steamclient.so || true
 
 # Install & Setup Goldberg Steam Emu
 info "Downloading Goldberg steam_api64.dll ..."
-if ! curl -sfSL -o "$HOME/DSPGAME_Data/Plugins/steam_api64.dll" "https://gitlab.com/Mr_Goldberg/goldberg_emulator/-/jobs/4247811310/artifacts/raw/steam_api64.dll"; then
+if ! curl -sfSL -o "$HOME/DSPGAME_Data/Plugins/x86_64/steam_api64.dll" "https://gitlab.com/Mr_Goldberg/goldberg_emulator/-/jobs/4247811310/artifacts/raw/steam_api64.dll"; then
   fail "Failed to download Goldberg steam_api64.dll."
 fi
-mkdir -p /mnt/server/DSPGAME_Data/Plugins/steam_settings
-touch /mnt/server/DSPGAME_Data/Plugins/steam_settings/disable_networking.txt
-echo "1366540" > /mnt/server/DSPGAME_Data/Plugins/steam_appid.txt
+mkdir -p /mnt/server/DSPGAME_Data/Plugins/x86_64/steam_settings
+touch /mnt/server/DSPGAME_Data/Plugins/x86_64/steam_settings/disable_networking.txt
+echo "1366540" > /mnt/server/DSPGAME_Data/Plugins/x86_64/steam_appid.txt
 
 # Download and install BepInEx
 cd /mnt/server
